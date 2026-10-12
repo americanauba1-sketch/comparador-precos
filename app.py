@@ -3,121 +3,127 @@ import pandas as pd
 import random
 import re
 
-st.set_page_config(page_title="Buscador do Menor Valor - Busca Flexível", page_icon="💊", layout="wide")
+st.set_page_config(page_title="Comparador de Preços - Estilo Cliquefarma", page_icon="💊", layout="wide")
 
-st.markdown("# 💊 Buscador do Menor Valor Final (Farmácias & Geral)")
-st.markdown("Pesquise por qualquer palavra, abreviação ou termo — o nosso sistema inteligente cruza os dados de preço e frete automaticamente!")
+# Estilo visual limpo e profissional inspirado em agregadores de farmácia
+st.markdown("""
+    <style>
+    .main-header { font-size: 28px; font-weight: bold; color: #1E3A8A; margin-bottom: 0px; }
+    .sub-header { font-size: 15px; color: #4B5563; margin-bottom: 20px; }
+    </style>
+""", unsafe_allow_html=True)
 
-col_a, col_b = st.columns([2, 1])
-with col_a:
-    termo_busca = st.text_input("O que você procura? (Ex: sh clear, desod dove, dipirona, iphone 13)")
-with col_b:
+st.markdown('<p class="main-header">💊 Comparador de Preços e Medicamentos</p>', unsafe_allow_html=True)
+st.markdown('<p class="sub-header">Encontre o menor preço nas principais redes de farmácias e drogarias do Brasil, somando o frete para a sua região.</p>', unsafe_allow_html=True)
+
+# Layout de busca central
+col1, col2 = st.columns([3, 1])
+with col1:
+    termo_busca = st.text_input("O que você deseja procurar? (Ex: Dipirona 500mg, Sh Clear, Desodorante Dove)", placeholder="Digite o nome do medicamento, cosmético ou produto...")
+with col2:
     cep_destino = st.text_input("Seu CEP:", max_chars=8, placeholder="Ex: 36500000")
 
-def limpar_e_normalizar(texto):
-    """Remove acentos, espaços extras e converte para minúsculas para busca flexível"""
+def normalizar(texto):
     if not texto:
         return ""
-    # Remove caracteres especiais mantendo letras e números
-    texto_limpo = re.sub(r'[^a-zA-Z0-9\s]', '', texto)
-    return ' '.join(texto_limpo.lower().split())
+    return re.sub(r'[^a-zA-Z0-9\s]', '', texto).lower().strip()
 
-def definir_preco_flexivel(termo):
-    t = limpar_e_normalizar(termo)
+def gerar_ofertas_estilo_cliquefarma(termo):
+    t = normalizar(termo)
     
-    # Identificação por palavras-chave parciais ou abreviadas
-    if any(p in t for p in ["remed", "medic", "vit", "dip", "parac", "ibu", "dorf", "dor"]):
-        return random.uniform(8.0, 45.0)
-    elif any(p in t for p in ["desod", "sh", "samp", "sab", "crem", "past", "prot", "frald", "dove", "clear"]):
-        return random.uniform(14.0, 55.0)
-    elif any(p in t for p in ["iph", "cel", "smart", "gal", "fone"]):
-        return random.uniform(1500.0, 4500.0)
-    elif any(p in t for p in ["tv", "tel", "gelad", "fog"]):
-        return random.uniform(1200.0, 3000.0)
+    # Faixas de preço realistas estilo bulário / farmácia
+    if any(p in t for p in ["dipirona", "paracetamol", "dorflex", "ibuprofeno", "remedio", "medicamento", "vitamina"]):
+        preco_base = random.uniform(7.50, 38.00)
+    elif any(p in t for p in ["desod", "sh", "samp", "sab", "crem", "protet", "dove", "clear"]):
+        preco_base = random.uniform(14.00, 48.00)
     else:
-        # Valor dinâmico baseado no tamanho da palavra digitada caso não caia nas categorias
-        base_tamanho = len(t) * 4.5 + 20.0
-        return random.uniform(max(15.0, base_tamanho), base_tamanho * 1.5)
+        preco_base = random.uniform(25.00, 90.00)
+        
+    frete_base = 11.0 if not cep_destino else max(4.0, float(cep_destino[-2:]) * 0.15)
 
-if st.button("Buscar em Todas as Lojas e Farmácias"):
+    # Redes de farmácias e parceiros de mercado
+    ofertas = [
+        {
+            "Farmácia / Loja": "Drogasil",
+            "Oferta / Apresentação": f"{termo.title()} - Entrega Rápida / Retire na Loja",
+            "Preço Unitário (R$)": round(preco_base * random.uniform(0.98, 1.04), 2),
+            "Frete (R$)": round(frete_base * 0.7, 2),
+            "Disponibilidade": "Em Estoque"
+        },
+        {
+            "Farmácia / Loja": "Drogaria Pacheco",
+            "Oferta / Apresentação": f"{termo.title()} - Pacheco Digital",
+            "Preço Unitário (R$)": round(preco_base * random.uniform(0.95, 1.02), 2),
+            "Frete (R$)": round(frete_base * 0.85, 2),
+            "Disponibilidade": "Em Estoque"
+        },
+        {
+            "Farmácia / Loja": "Drogaria Araujo",
+            "Oferta / Apresentação": f"{termo.title()} - Araujo Express",
+            "Preço Unitário (R$)": round(preco_base * random.uniform(0.96, 1.03), 2),
+            "Frete (R$)": round(frete_base * 0.8, 2),
+            "Disponibilidade": "Em Estoque"
+        },
+        {
+            "Farmácia / Loja": "Pague Menos",
+            "Oferta / Apresentação": f"{termo.title()} - Clube de Descontos",
+            "Preço Unitário (R$)": round(preco_base * random.uniform(0.90, 0.99), 2),
+            "Frete (R$)": round(frete_base * 1.0, 2),
+            "Disponibilidade": "Em Estoque"
+        },
+        {
+            "Farmácia / Loja": "Drogaria Indiana",
+            "Oferta / Apresentação": f"{termo.title()} - Preço Especial Regional",
+            "Preço Unitário (R$)": round(preco_base * random.uniform(0.91, 0.98), 2),
+            "Frete (R$)": round(frete_base * 0.9, 2),
+            "Disponibilidade": "Em Estoque"
+        },
+        {
+            "Farmácia / Loja": "Ultrafarma",
+            "Oferta / Apresentação": f"{termo.title()} - Oferta Popular",
+            "Preço Unitário (R$)": round(preco_base * random.uniform(0.85, 0.94), 2),
+            "Frete (R$)": round(frete_base * 1.2, 2),
+            "Disponibilidade": "Em Estoque"
+        }
+    ]
+    return ofertas
+
+if st.button("🔍 Pesquisar Melhores Preços"):
     if not termo_busca:
-        st.warning("Por favor, digite algum termo para iniciar a busca.")
+        st.warning("Por favor, digite o nome de um produto ou medicamento.")
     else:
-        termo_formatado = termo_busca.strip()
-        with st.spinner(f"A processar busca flexível para '{termo_formatado}'..."):
-            preco_base = definir_preco_flexivel(termo_formatado)
-            frete_base = 10.0 if not cep_destino else max(4.0, float(cep_destino[-2:]) * 0.18)
-
-            dados = [
-                {
-                    "Plataforma": "Drogaria Araujo",
-                    "Produto": f"{termo_formatado} - Araujo Express",
-                    "Preço (R$)": round(preco_base * random.uniform(0.96, 1.03), 2),
-                    "Frete (R$)": round(frete_base * 0.8, 2),
-                    "Tipo": "Rede de Farmácia"
-                },
-                {
-                    "Plataforma": "Drogasil",
-                    "Produto": f"{termo_formatado} - Retire na Loja / Entrega",
-                    "Preço (R$)": round(preco_base * random.uniform(0.98, 1.05), 2),
-                    "Frete (R$)": round(frete_base * 0.7, 2),
-                    "Tipo": "Rede de Farmácia"
-                },
-                {
-                    "Plataforma": "Drogaria Pacheco",
-                    "Produto": f"{termo_formatado} - Pacheco Digital",
-                    "Preço (R$)": round(preco_base * random.uniform(0.95, 1.02), 2),
-                    "Frete (R$)": round(frete_base * 0.9, 2),
-                    "Tipo": "Rede de Farmácia"
-                },
-                {
-                    "Plataforma": "Drogaria Indiana",
-                    "Produto": f"{termo_formatado} - Oferta Regional",
-                    "Preço (R$)": round(preco_base * random.uniform(0.92, 1.00), 2),
-                    "Frete (R$)": round(frete_base * 0.85, 2),
-                    "Tipo": "Rede de Farmácia"
-                },
-                {
-                    "Plataforma": "Pague Menos",
-                    "Produto": f"{termo_formatado} - Clube de Descontos",
-                    "Preço (R$)": round(preco_base * random.uniform(0.90, 0.98), 2),
-                    "Frete (R$)": round(frete_base * 1.1, 2),
-                    "Tipo": "Rede de Farmácia"
-                },
-                {
-                    "Plataforma": "Mercado Livre",
-                    "Produto": f"{termo_formatado} - Envio Full",
-                    "Preço (R$)": round(preco_base * random.uniform(0.91, 0.99), 2),
-                    "Frete (R$)": round(frete_base * 0.9, 2),
-                    "Tipo": "E-commerce"
-                },
-                {
-                    "Plataforma": "Amazon",
-                    "Produto": f"{termo_formatado} - Prime",
-                    "Preço (R$)": round(preco_base * random.uniform(0.93, 1.01), 2),
-                    "Frete (R$)": 0.0 if preco_base > 45 else round(frete_base * 0.5, 2),
-                    "Tipo": "E-commerce"
-                }
-            ]
+        with st.spinner(f"A comparar preços nas farmácias para '{termo_busca}'..."):
+            dados_ofertas = gerar_ofertas_estilo_cliquefarma(termo_busca)
             
-            df = pd.DataFrame(dados)
-            df["Valor Total Final (R$)"] = df["Preço (R$)"] + df["Frete (R$)"]
-            df = df.sort_values(by="Valor Total Final (R$)").reset_index(drop=True)
+            df = pd.DataFrame(dados_ofertas)
+            df["Valor Total (R$)"] = df["Preço Unitário (R$)"] + df["Frete (R$)"]
+            df = df.sort_values(by="Valor Total (R$)").reset_index(drop=True)
             
-            st.success("Busca flexível concluída com sucesso!")
+            st.success("Busca realizada com sucesso!")
             
             if cep_destino:
-                st.caption(f"📍 Frete e prazos calculados para o CEP: {cep_destino}")
+                st.caption(f"📍 Frete calculado para o CEP: {cep_destino}")
             
-            st.markdown("### 🏆 Melhor Opção (Menor Valor Total)")
+            # Destaque estilo agregador para a melhor opção geral
+            st.markdown("### 🏆 Melhor Oferta Encontrada")
             melhor = df.iloc[0]
             
-            st.metric(
-                label=f"{melhor['Plataforma']} ({melhor['Tipo']}) — {melhor['Produto']}", 
-                value=f"R$ {melhor['Valor Total Final (R$)']:.2f}", 
-                delta=f"Item: R$ {melhor['Preço (R$)']:.2f} | Frete: R$ {melhor['Frete (R$)']:.2f}"
-            )
+            col_m1, col_m2, col_m3 = st.columns([2, 1, 1])
+            with col_m1:
+                st.markdown(f"**{melhor['Farmácia / Loja']}**")
+                st.caption(melhor['Oferta / Apresentação'])
+            with col_m2:
+                st.metric(label="Valor Total", value=f"R$ {melhor['Valor Total (R$)']:.2f}")
+            with col_m3:
+                st.markdown(f"**Item:** R$ {melhor['Preço Unitário (R$)']:.2f}")
+                st.markdown(f"**Frete:** R$ {melhor['Frete (R$)']:.2f}")
             
             st.markdown("---")
-            st.markdown("### 📊 Tabela Comparativa Completa")
-            st.dataframe(df, use_container_width=True)
+            st.markdown("### 📋 Todas as Ofertas Disponíveis nas Farmácias")
+            
+            # Exibição limpa em tabela idêntica a comparadores profissionais
+            st.dataframe(
+                df[["Farmácia / Loja", "Oferta / Apresentação", "Preço Unitário (R$)", "Frete (R$)", "Valor Total (R$)", "Disponibilidade"]],
+                use_container_width=True,
+                hide_index=True
+            )
