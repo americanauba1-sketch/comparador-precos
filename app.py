@@ -37,36 +37,7 @@ def consultar_produto_externo(termo):
         except:
             pass
             
-    # Base inteligente expandida cobrindo milhares de itens de farmácia e perfumaria
-    t = termo_limpo.lower()
-    if "78924468" in t or "dove" in t:
-        return "Desodorante Antitranspirante Roll-On Dove Original 50ml", 11.90, "Perfumaria"
-    elif "7898940257478" in t or "fio dental" in t:
-        return "Fio Dental Powerdent Classic Floss 125m", 7.50, "Higiene"
-    elif "dipirona" in t:
-        return "Dipirona Sódica 500mg 10 Comprimidos (Genérico)", 4.50, "Medicamento"
-    elif "dorflex" in t:
-        return "Dorflex 10 Comprimidos Relaxante Muscular", 14.80, "Medicamento"
-    elif "paracetamol" in t:
-        return "Paracetamol 750mg 20 Comprimidos", 16.20, "Medicamento"
-    elif "shampoo" in t or "clear" in t:
-        return "Shampoo Anticaspa Clear Men 200ml", 18.90, "Perfumaria"
-    elif "ibuprofeno" in t:
-        return "Ibuprofeno 600mg 20 Comprimidos", 22.50, "Medicamento"
-    elif "vitamina" in t:
-        return "Vitamina C Efervescente 10 Comprimidos", 26.00, "Medicamento"
-    else:
-        # Gerador dinâmico baseado no hash exato do termo para manter consistência sem inflar
-        random.seed(sum(ord(c) for c in t))
-        preco_gerado = round(random.uniform(12.0, 45.0), 2)
-        return termo_limpo.title(), preco_gerado, "Geral / Correlatos"
-
-if st.button("🔍 Buscar Menor Preço nas Redes"):
-    if not termo_busca:
-        st.warning("Por favor, digite um produto ou código de barras.")
-    else:
-        with st.spinner("A consultar bases de EAN, Abcfarma e e-commerces..."):
-            nome_produto, preco_base, categoria = consultar_produto_externo(termo_busca)
+ 
             
             # Cálculo de frete baseado no CEP
             frete_base = 10.0 if not cep_destino else max(4.0, float(cep_destino[-2:]) * 0.15)
