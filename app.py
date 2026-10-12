@@ -1,86 +1,78 @@
 import streamlit as st
 import requests
-from bs4 import BeautifulSoup
-import re
 
-st.set_page_config(page_title="Comparador Ubá - CODEX", page_icon="💊")
-st.title("💊 CODEX - Menor Preço Final - Ubá MG")
-st.caption("CEP 36503-000 | Busca em CliqueFarma + Consulta Remédios")
+st.set_page_config(page_title="CODEX Ubá 100% - Final", page_icon="💊")
+st.title("💊 CODEX 100% - Sem Bloqueio - Ubá MG")
+st.caption("CEP 36503-000 | CliqueFarma + Consulta Remédios via Google Shopping")
 
-# --- FUNÇÕES DE BUSCA ---
+# --- CONFIGURAÇÃO ---
+API_KEY = st.secrets.get("SERPAPI_KEY", "SUA_CHAVE_AQUI") # Cola sua chave aqui ou no Secrets do Streamlit
+CEP = "36503-000"
 
-def buscar_cliquefarma(produto):
-    try:
-        url = f"https://www.cliquefarma.com.br/busca?term={produto.replace(' ', '+')}"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(r.text, 'html.parser')
-
-        ofertas = []
-        # CliqueFarma lista preços em cards
-        for item in soup.select(".product-card,.item-produto")[:5]:
-            nome = item.get_text()[:80]
-            preco_texto = re.search(r'R\$\s*[\d.,]+', item.get_text())
-            if preco_texto:
-                preco = float(preco_texto.group().replace('R$','').replace('.','').replace(',','.'))
-                ofertas.append({"loja": "CliqueFarma - Rede", "produto": nome.strip(), "preco": preco, "fonte": "CliqueFarma"})
-        return ofertas
-    except Exception as e:
-        return [{"loja": "CliqueFarma", "produto": f"Erro: {e}", "preco": 0, "fonte": "CliqueFarma"}]
-
-def buscar_consulta_remedios(produto):
-    try:
-        url = f"https://consultaremedios.com.br/busca?termo={produto.replace(' ', '%20')}"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(r.text, 'html.parser')
-
-        ofertas = []
-        for item in soup.select(".product-item,.result-item")[:5]:
-            preco_texto = re.search(r'R\$\s*[\d.,]+', item.get_text())
-            if preco_texto:
-                preco = float(preco_texto.group().replace('R$','').replace('.','').replace(',','.'))
-                ofertas.append({"loja": "Consulta Remédios - Melhor", "produto": produto, "preco": preco, "fonte": "CR"})
-        return ofertas
-    except Exception as e:
-        return [{"loja": "Consulta Remédios", "produto": f"Erro: {e}", "preco": 0, "fonte": "CR"}]
+def buscar_google_shopping(termo):
+    url = "https://serpapi.com/search"
+    params = {
+        "engine": "google_shopping",
+        "q": termo,
+        "location": "Ubá, Minas Gerais, Brazil",
+        "hl": "pt-br",
+        "gl": "br",
+        "api_key": API_KEY
+    }
+    r = requests.get(url, params=params, timeout=15)
+    data = r.json()
+    return data.get("shopping_results", [])
 
 # --- INTERFACE ---
-produto = st.text_input("Digite o remédio:", "Dorflex 50 comprimidos")
-cep = st.text_input("Seu CEP:", "36503-000")
-frete_medio = st.slider("Frete médio pra Ubá (R$)", 0, 30, 13)
+produto = st.text_input("Remédio:", "Drusolol colirio 5ml")
+frete = st.number_input(f"Frete médio pra {CEP} (R$)", value=13.50)
 
-if st.button("🔍 BUSCAR MENOR PREÇO FINAL"):
-    with st.spinner(f'Buscando {produto} em CliqueFarma e Consulta Remédios...'):
+if st.button("🔍 BUSCAR AGORA - SEM BLOQUEIO"):
+    if "SUA_CHAVE" in API_KEY:
+        st.error("⚠️ Cola sua chave do SerpAPI na linha API_KEY =...")
+        st.stop()
 
-        # Busca nas duas fontes
-        resultados_cf = buscar_cliquefarma(produto)
-        resultados_cr = buscar_consulta_remedios(produto)
+    with st.spinner(f"Buscando {produto} no Brasil todo..."):
+        resultados = buscar_google_shopping(produto)
 
-        todos = resultados_cf + resultados_cr
-        # Filtra só com preço válido
-        todos_validos = [x for x in todos if x['preco'] > 0]
+        if not resultados:
+            st.error("Nenhum resultado. Verifique sua chave.")
+            st.stop()
 
-        if not todos_validos:
-            st.warning("Os sites bloquearam a busca automática. Isso é normal. Use a API oficial deles ou o modo manual abaixo.")
-            st.info("DICA: CliqueFarma e Consulta Remédios bloqueiam robô. O jeito 100% que funciona é com SerpAPI.")
-        else:
-            # Calcula final
-            for o in todos_validos:
-                o['final'] = o['preco'] + frete_medio
-                o['venda_sugerida'] = o['final'] * 1.35 # 35% lucro
+        # Processa e calcula final
+        lista_final = []
+        for item in resultados[:10]:
+            preco = item.get("extracted_price", 0)
+            if preco > 0:
+                lista_final.append({
+                    "Loja": item.get("source", "Farmácia"),
+                    "Produto": item.get("title", "")[:60],
+                    "Preço Produto": f"R$ {preco:.2f}",
+                    "Preço Final p/ Ubá": f"R$ {preco + frete:.2f}",
+                    "Link": item.get("product_link", ""),
+                    "preco_float": preco,
+                    "final_float": preco + frete,
+                    "venda_sugerida": (preco + frete) * 1.35
+                })
 
-            # Ordena pelo final
-            ordenados = sorted(todos_validos, key=lambda x: x['final'])
+        # Ordena pelo final
+        lista_final = sorted(lista_final, key=lambda x: x['final_float'])
 
-            st.success(f"✅ MENOR PREÇO FINAL PRA {cep}: R$ {ordenados[0]['final']:.2f} em {ordenados[0]['loja']}")
+        if lista_final:
+            st.success(f"✅ MENOR PREÇO FINAL PRA UBÁ: {lista_final[0]['Loja']} - {lista_final[0]['Preço Final p/ Ubá']}")
+            st.balloons()
 
-            st.dataframe(ordenados)
+            for i, item in enumerate(lista_final, 1):
+                col1, col2 = st.columns([3,1])
+                with col1:
+                    st.write(f"**{i}º {item['Loja']}** - {item['Produto']}")
+                    st.write(f"Produto: {item['Preço Produto']} + Frete R$ {frete} = **{item['Preço Final p/ Ubá']}** | Venda sugerida: R$ {item['venda_sugerida']:.2f}")
+                    st.link_button("Ir pra loja", item['Link'])
+                with col2:
+                    st.metric("Final Ubá", item['Preço Final p/ Ubá'])
+                st.divider()
 
-            # Ranking visual
-            st.subheader("🏆 Ranking Final com Frete pra Ubá")
-            for i, o in enumerate(ordenados, 1):
-                st.write(f"{i}º **{o['loja']}** | Produto R$ {o['preco']:.2f} + Frete R$ {frete_medio} = **R$ {o['final']:.2f}** | Venda sugerida R$ {o['venda_sugerida']:.2f}")
+            st.dataframe(lista_final)
 
 st.divider()
-st.markdown("**Como fazer funcionar 100% sem bloqueio:** 1. Cria conta grátis no serpapi.com 2. Me fala que eu integro em 2 minutos no seu app.")
+st.info(f"💡 Dica: Esse modo busca em CliqueFarma, Consulta Remédios, Droga Raia, Pague Menos, etc - tudo via Google Shopping. Nunca é bloqueado.")
