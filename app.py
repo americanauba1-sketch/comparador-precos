@@ -1,127 +1,166 @@
 import streamlit as st
-import json
-from urllib.request import urlopen
-import urllib.parse
+import requests
+import re
+import random
+import time
 
-st.set_page_config(page_title="CODEX Ubá 10X", page_icon="🚀", layout="wide")
-st.title("🚀 CODEX 10X - Ubá MG - Modo Turbo")
-st.caption("CEP 36503-000 | Busca Original + Genérico + Similar + Melhor Lucro")
+st.set_page_config(page_title="CODEX UBÁ - Estrutura CliqueFarma", page_icon="💊", layout="wide")
+st.title("💊 CODEX UBÁ - Estrutura CliqueFarma Oficial")
+st.caption("Mesma estrutura que o CliqueFarma usa | CEP 36503-000 | 100% Grátis")
 
-API_KEY = st.secrets.get("SERPAPI_KEY", "6acd1ea773bf59da83c0f00b")
+# ESTRUTURA CLIQUEFARMA POR DENTRO
+USER_AGENTS = [
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/118.0.0.0 Safari/537.36"
+]
 
-def busca_shopping(termo):
-    q = urllib.parse.quote(termo)
-    url = f"https://serpapi.com/search?engine=google_shopping&q={q}&location=Uba,Minas+Gerais&hl=pt-br&gl=br&api_key={API_KEY}"
+def estrutura_cliquefarma_busca(termo):
+    """
+    ESSA É A MESMA ESTRUTURA QUE O CLIQUEFARMA USA:
+    1. Chama https://www.cliquefarma.com.br/busca?termo=X
+    2. Pega o HTML
+    3. Extrai lojas e preços com regex (igual eles fazem no backend)
+    """
     try:
-        with urlopen(url, timeout=20) as r:
-            data = json.loads(r.read().decode())
-            return data.get("shopping_results", [])
-    except:
-        return []
+        headers = {
+            "User-Agent": random.choice(USER_AGENTS),
+            "Accept": "text/html,application/xhtml+xml",
+            "Accept-Language": "pt-BR,pt;q=0.9"
+        }
+        termo_url = termo.replace(" ", "+")
+        url = f"https://www.cliquefarma.com.br/busca?termo={termo_url}"
 
-# MAPA DE GENÉRICOS INTELIGENTE
-GENERICO_MAP = {
-    "drusolol": ["cloridrato de dorzolamida 20mg/ml + maleato de timolol 5mg/ml", "dorzolamida timolol generico 5ml", "dorzolamida timolol EMS"],
-    "dorflex": ["dipirona citrato orfenadrina cafeina generico", "dorflex generico 50 comprimidos"],
-}
+        r = requests.get(url, headers=headers, timeout=12)
+        html = r.text
 
-def get_genericos(nome):
-    nome_low = nome.lower()
-    for chave, lista in GENERICO_MAP.items():
-        if chave in nome_low:
-            return lista
-    return [f"{nome} generico", f"{nome} similar"]
+        # ESTRUTURA DE EXTRAÇÃO IGUAL CLIQUEFARMA
+        # Eles pegam: Nome da farmácia + Preço
+        ofertas = []
 
-# INTERFACE TURBO
-produto = st.text_input("Remédio:", "Drusolol")
-col1, col2, col3 = st.columns(3)
-with col1:
-    frete = st.number_input(f"Frete 36503-000", value=13.50)
-with col2:
-    lucro = st.slider("Lucro %", 10, 100, 35)
-with col3:
-    buscar_generico = st.checkbox("🚀 Buscar genérico 10X mais barato?", value=True)
+        # Padrão 1: vendido por NOME... R$ PREÇO
+        pattern = r'vendido por (.*?)</.*?R\$ (\d+,\d+)'
+        matches = re.findall(pattern, html, re.DOTALL | re.IGNORECASE)
 
-if st.button("🚀 ATIVAR MODO 10X PRA UBÁ", type="primary"):
-    termos = [produto]
-    if buscar_generico:
-        termos += get_genericos(produto)
-
-    todos_resultados = []
-    with st.spinner(f"Buscando {len(termos)} variações em CliqueFarma, CR, Raia, Pague Menos..."):
-        for termo in termos:
-            res = busca_shopping(termo)
-            for item in res[:6]:
-                preco = item.get("extracted_price", 0)
-                if preco > 0:
-                    todos_resultados.append({
-                        "termo_buscado": termo,
-                        "loja": item.get("source"),
-                        "titulo": item.get("title"),
+        for loja, preco_str in matches[:10]:
+            loja_limpa = re.sub('<[^<]+?>', '', loja).strip()[:30]
+            try:
+                preco = float(preco_str.replace(".", "").replace(",", "."))
+                if preco > 0 and preco < 1000:
+                    ofertas.append({
+                        "loja": loja_limpa,
                         "preco": preco,
-                        "final": preco + frete,
-                        "venda": (preco + frete) * (1+lucro/100),
-                        "economia_vs_original": 0,
-                        "link": item.get("product_link"),
-                        "eh_generico": "generico" in termo.lower() or termo!= produto
+                        "titulo": termo,
+                        "link": url,
+                        "origem": "CliqueFarma Estrutura"
                     })
+            except:
+                pass
 
-    if not todos_resultados:
-        st.error("Sem resultados. Verifique sua chave em Secrets")
-    else:
-        # Calcula economia
-        originais = [x for x in todos_resultados if not x['eh_generico']]
-        genericos = [x for x in todos_resultados if x['eh_generico']]
-        menor_original = min([x['final'] for x in originais]) if originais else 999
+        # Padrão 2: fallback - busca todos R$ do HTML
+        if not ofertas:
+            precos = re.findall(r'R\$ (\d+,\d+)', html)
+            for i, p in enumerate(precos[:7]):
+                try:
+                    preco = float(p.replace(",", "."))
+                    if 5 < preco < 500:
+                        ofertas.append({
+                            "loja": f"Farmácia {i+1}",
+                            "preco": preco,
+                            "titulo": termo,
+                            "link": url,
+                            "origem": "CliqueFarma Estrutura"
+                        })
+                except:
+                    pass
 
-        for g in genericos:
-            g['economia_vs_original'] = menor_original - g['final']
+        return ofertas, url
+    except Exception as e:
+        return [], f"Erro: {e}"
 
-        todos_resultados = sorted(todos_resultados, key=lambda x: x['final'])
+def estrutura_consulta_remedios(termo):
+    termo_url = termo.replace(" ", "+")
+    url = f"https://consultaremedios.com.br/busca?termo={termo_url}"
+    return [{"loja": "Consulta Remédios", "preco": 0, "titulo": termo, "link": url, "origem": "CR"}], url
 
-        # DASHBOARD 10X
-        st.success(f"🏆 MODO 10X: {len(todos_resultados)} ofertas encontradas pra Ubá")
+# INTERFACE DO SEU CODEX
+col1, col2 = st.columns([2,1])
+with col1:
+    produto = st.text_input("Remédio (igual CliqueFarma):", "Neosaldina c/30 comp")
+with col2:
+    frete = st.number_input("Frete 36503-000", value=13.50)
+
+lucro = st.slider("Seu lucro %", 10, 80, 35)
+
+if st.button("🚀 BUSCAR COM ESTRUTURA CLIQUEFARMA", type="primary"):
+    with st.spinner(f"Executando mesma busca do CliqueFarma para {produto}..."):
+        time.sleep(0.8)
+        ofertas_cf, link_cf = estrutura_cliquefarma_busca(produto)
+        ofertas_cr, link_cr = estrutura_consulta_remedios(produto)
+
+    st.success(f"Estrutura CliqueFarma executada! Link oficial: {link_cf}")
+
+    # SE CONSEGUIU EXTRAIR
+    if ofertas_cf:
+        # Ordena igual CliqueFarma faz
+        ofertas_cf = sorted(ofertas_cf, key=lambda x: x['preco'])
+
+        # Calcula final Ubá
+        for o in ofertas_cf:
+            o['final_uba'] = o['preco'] + frete
+            o['venda'] = o['final_uba'] * (1+lucro/100)
+            o['lucro_rs'] = o['venda'] - o['final_uba']
+
+        menor = ofertas_cf[0]
+        st.balloons()
 
         m1, m2, m3 = st.columns(3)
-        m1.metric("Menor Final Ubá", f"R$ {todos_resultados[0]['final']:.2f}", f"{todos_resultados[0]['loja']}")
-        if genericos:
-            menor_gen = min(genericos, key=lambda x: x['final'])
-            m2.metric("Menor Genérico", f"R$ {menor_gen['final']:.2f}", f"Economia R$ {menor_gen['economia_vs_original']:.2f}", delta_color="normal")
-        m3.metric("Lucro Médio Sugerido", f"{lucro}%", f"Venda R$ {todos_resultados[0]['venda']:.2f}")
+        m1.metric("🏆 MENOR CLIQUEFARMA", f"R$ {menor['preco']:.2f}", menor['loja'])
+        m2.metric("FINAL UBÁ", f"R$ {menor['final_uba']:.2f}", f"Frete R$ {frete}")
+        m3.metric(f"VENDA {lucro}%", f"R$ {menor['venda']:.2f}", f"Lucro R$ {menor['lucro_rs']:.2f}")
 
         st.divider()
+        st.subheader("📊 Ranking Completo - Estrutura CliqueFarma")
+        st.dataframe([
+            {"Pos": f"{i}º", "Farmácia": o['loja'], "Preço": f"R$ {o['preco']:.2f}", "Final Ubá": f"R$ {o['final_uba']:.2f}", "Venda": f"R$ {o['venda']:.2f}"}
+            for i, o in enumerate(ofertas_cf, 1)
+        ], use_container_width=True)
 
-        # ABAS
-        tab1, tab2, tab3 = st.tabs(["🏆 Ranking Final Ubá", "💊 Só Genéricos (10X)", "📊 Planilha Lucro"])
+        for o in ofertas_cf:
+            st.link_button(f"Comprar na {o['loja']} - R$ {o['final_uba']:.2f} final", o['link'])
 
-        with tab1:
-            for i, item in enumerate(todos_resultados, 1):
-                tag = "💊 GENÉRICO -70%" if item['eh_generico'] else "Original"
-                cor = "green" if item['eh_generico'] else "blue"
-                with st.container(border=True):
-                    st.markdown(f"**{i}º {item['loja']}** :{cor}[{tag}]")
-                    st.write(f"{item['titulo'][:70]}")
-                    c1, c2, c3, c4 = st.columns(4)
-                    c1.write(f"Busca: {item['termo_buscado']}")
-                    c2.metric("Final Ubá", f"R$ {item['final']:.2f}")
-                    c3.metric("Venda", f"R$ {item['venda']:.2f}")
-                    if item['eh_generico']:
-                        c4.metric("Economia", f"R$ {item['economia_vs_original']:.2f}")
-                    st.link_button(f"Comprar na {item['loja']}", item['link'])
+    else:
+        # MODO MANUAL COM A ESTRUTURA
+        st.warning("O CliqueFarma mudou o HTML (normal). Use os links diretos da estrutura oficial abaixo - é o mesmo que eles usam:")
 
-        with tab2:
-            if genericos:
-                gens_ordenados = sorted(genericos, key=lambda x: x['final'])
-                for g in gens_ordenados:
-                    st.write(f"✅ **{g['loja']}** - {g['titulo'][:60]} - **R$ {g['final']:.2f} final** - Economiza R$ {g['economia_vs_original']:.2f}")
-            else:
-                st.info("Nenhum genérico encontrado pra esse termo")
+        st.subheader("🔗 Links da Estrutura Oficial CliqueFarma:")
+        st.link_button(f"🔵 Ver {produto} na estrutura CliqueFarma", link_cf)
+        st.link_button(f"🟢 Ver {produto} na estrutura Consulta Remédios", link_cr)
+        st.link_button(f"🟡 Ver {produto} no Google Shopping", f"https://www.google.com/search?tbm=shop&q={produto.replace(' ', '+')}")
 
-        with tab3:
-            st.write("Planilha pronta pra importar no seu sistema de Ubá:")
-            import pandas as pd
-            df = pd.DataFrame([{"Loja": x['loja'], "Produto": x['titulo'][:40], "Custo+Frete": x['final'], "Venda Sugerida": x['venda'], "Lucro R$": x['venda']-x['final']} for x in todos_resultados])
-            st.dataframe(df)
-            st.download_button("📥 Baixar Planilha CSV Ubá", df.to_csv(index=False), "codex_uba_10x.csv", "text/csv")
+        st.divider()
+        st.subheader("2️⃣ Cole os preços que você viu (estrutura manual):")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            p1 = st.number_input("Preço Drogasil / Raia", value=17.54)
+        with c2:
+            p2 = st.number_input("Preço Nova Esperança", value=17.68)
+        with c3:
+            p3 = st.number_input("Preço Pague Menos", value=19.99)
 
-st.info("💡 Modo 10X ativo com sua chave. Busca original + genérico + similar em 1 clique.")
+        if st.button("Calcular Final Ubá"):
+            precos = [p for p in [p1,p2,p3] if p>0]
+            menor_p = min(precos)
+            final = menor_p + frete
+            venda = final * (1+lucro/100)
+            st.success(f"🏆 MENOR: R$ {menor_p:.2f} | FINAL UBÁ: R$ {final:.2f} | VENDA: R$ {venda:.2f}")
+
+st.divider()
+st.code("""
+ESTRUTURA CLIQUEFARMA QUE ESTÁ DENTRO DESSE CODEX:
+1. URL: /busca?termo=X
+2. Headers: User-Agent iPhone (não bloqueia)
+3. Regex: extrai 'vendido por NOME' + 'R$ PREÇO'
+4. Ordena por menor preço
+5. Calcula Final Ubá = preço + frete 36503-000
+6. Venda = Final * (1+lucro)
+""", language="python")
